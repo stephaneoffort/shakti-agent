@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agent Shakti</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #0f0f0f;
+      color: white;
+    }
+    h1 { margin-bottom: 2rem; font-size: 1.5rem; }
+    button {
+      padding: 1rem 2rem;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #7c3aed;
+      color: white;
+    }
+    button:disabled { background: #444; cursor: default; }
+    #status {
+      margin-top: 1.5rem;
+      font-size: 0.95rem;
+      color: #aaa;
+    }
+    #indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #444;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    #indicator.on { background: #22c55e; }
+  </style>
+</head>
+<body>
+  <h1>Agent Shakti</h1>
+  <button id="btn" onclick="start()">Démarrer la conversation</button>
+  <p id="status"><span id="indicator"></span>En attente</p>
+
+  <script type="module">
+    import {
+      Room,
+      RoomEvent,
+      createLocalAudioTrack
+    } from "https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs";
+
+    window.start = async function () {
+      const btn = document.getElementById("btn");
+      const status = document.getElementById("status");
+      const indicator = document.getElementById("indicator");
+
+      btn.disabled = true;
+      status.innerHTML = '<span id="indicator"></span>Connexion...';
+
+      try {
+        // Demande un token à ton endpoint Vercel
+        const res = await fetch("/api/token");
+        const { token, url } = await res.json();
+
+        const room = new Room();
+        await room.connect(url, token);
+
+        // Active le micro
+        const audioTrack = await createLocalAudioTrack();
+        await room.localParticipant.publishTrack(audioTrack);
+
+        indicator.className = "on";
+        status.innerHTML = '<span id="indicator" class="on"></span>Connecté — parle !';
+
+        // Joue l'audio de l'agent dès qu'il parle
+        room.on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === "audio") {
+            const el = track.attach();
+            el.autoplay = true;
+            document.body.appendChild(el);
+          }
+        });
+
+        room.on(RoomEvent.Disconnected, () => {
+          status.innerHTML = '<span id="indicator"></span>Déconnecté';
+          btn.disabled = false;
+        });
+
+      } catch (err) {
+        console.error(err);
+        status.innerHTML = "Erreur : " + err.message;
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>
